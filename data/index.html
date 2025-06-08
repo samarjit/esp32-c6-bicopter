@@ -1,0 +1,87 @@
+<!--
+  Rui Santos
+  Complete project details at https://RandomNerdTutorials.com/esp32-mpu-6050-web-server/
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+
+<!DOCTYPE HTML><html>
+<head>
+  <title>ESP Web Server</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/107/three.min.js"></script>
+</head>
+<body>
+  <div class="topnav">
+    <h1><i class="far fa-compass"></i> MPU6050 <i class="far fa-compass"></i></h1>
+  </div>
+  <div class="content">
+    <div class="cards">
+      <div class="card">
+        <p class="card-title">GYROSCOPE</p>
+        <p><span class="reading">X: <span id="gyroX"></span> rad</span></p>
+        <p><span class="reading">Y: <span id="gyroY"></span> rad</span></p>
+        <p><span class="reading">Z: <span id="gyroZ"></span> rad</span></p>
+      </div>
+      <div class="card" style="display: none;">
+        <p class="card-title">ACCELEROMETER</p>
+        <p><span class="reading">X: <span id="accX"></span> ms<sup>2</sup></span></p>
+        <p><span class="reading">Y: <span id="accY"></span> ms<sup>2</sup></span></p>
+        <p><span class="reading">Z: <span id="accZ"></span> ms<sup>2</sup></span></p>
+      </div>
+      <div class="card" style="display: none;">
+        <p class="card-title">TEMPERATURE</p>
+        <p><span class="reading"><span id="temp"></span> &deg;C</span></p>
+        <button id="resetX" onclick="resetPosition(this)">X</button>
+        <button id="resetY" onclick="resetPosition(this)">Y</button>
+        <button id="resetZ" onclick="resetPosition(this)">Z</button>
+      </div>
+
+      
+      <div class="card">
+        <p class="card-title">Radio</p>
+        <p><span class="reading">Ch_1 (thr thro): <span id="channel_1_pwm"></span></span></p>
+        <p><span class="reading">Ch_2 (ail roll): <span id="channel_2_pwm"></span></span></p>
+        <p><span class="reading">Ch_3 (ele pitch): <span id="channel_3_pwm"></span></span></p>
+        <p><span class="reading">Ch_4 (rud yaw): <span id="channel_4_pwm"></span></span></p>
+      </div>
+
+      <div class="card">
+        <p class="card-title">Roll pitch yaw IMU</p>
+        <p><span class="reading">Roll: <span id="roll_IMU"></span> &deg;</span></p>
+        <p><span class="reading">Pitch: <span id="pitch_IMU"></span> &deg;</span></p>
+        <p><span class="reading">Yaw: <span id="yaw_IMU"></span> &deg;</span></p>
+      </div>
+      <div class="card">
+        <p class="card-title">Desired</p>
+        <p><span class="reading">thro_des: <span id="thro_des"></span> </span></p>
+        <p><span class="reading">roll_des: <span id="roll_des"></span> </span></p>
+        <p><span class="reading">pitch_des: <span id="pitch_des"></span> </span></p>
+        <p><span class="reading">yaw_des: <span id="yaw_des"></span> </span></p>
+      </div>
+      <div class="card">
+        <p class="card-title">PID</p>
+        <p><span class="reading">roll_PID: <span id="roll_PID"></span> </span></p>
+        <p><span class="reading">pitch_PID: <span id="pitch_PID"></span> </span></p>
+        <p><span class="reading">yaw_PID: <span id="yaw_PID"></span> </span></p>
+      </div>
+      <div class="card">
+        <p class="card-title">Motor</p>
+        <p><span class="reading">MLeft: <span id="MLeft"></span> </span></p>
+        <p><span class="reading">MRight: <span id="MRight"></span></span></p>
+        <p><span class="reading">SLeft: <span id="SLeft"></span> </span></p>
+        <p><span class="reading">SRight: <span id="SRight"></span></span></p>
+      </div>
+      
+    </div>
+    <div class="cube-content">
+      <div id="3Dcube"></div>
+    </div>
+  </div>
+<script src="script.js"></script>
+</body>
+</html>
