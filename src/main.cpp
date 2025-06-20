@@ -1182,6 +1182,10 @@ void controlMixer() {
   // m1_command_scaled = thro_des - yaw_PID;
   // s1_command_scaled = /*servo_left_trim */ roll_PID + pitch_PID;  //left servo
   // s2_command_scaled = /*servo_right_trim */ roll_PID - pitch_PID; //right servo
+  m1_command_scaled = thro_des - pitch_PID + yaw_PID + roll_PID;
+  m2_command_scaled = thro_des - pitch_PID - yaw_PID - roll_PID;
+  m3_command_scaled = thro_des + pitch_PID - yaw_PID + roll_PID;
+  m4_command_scaled = thro_des + pitch_PID + yaw_PID - roll_PID;
   //my---tailsitter-end
   //Example use of the linear fader for float type variables. Linearly interpolates between minimum and maximum values for Kp_pitch_rate variable based on state of channel 6
   /*
@@ -1382,13 +1386,19 @@ void myCommandMotors() {
  // pin 0,1 A-channel
  // pin 3,4 B-channel
   int motorLeft = map(m1_command_PWM, 125, 250, 0, 255);
-  int motorRight = map(m2_command_PWM, 125, 250, 0, 255);
-  analogWrite(mRight, motorLeft);
-  analogWrite(mLeft, motorRight);
+  int motorRight = map(m3_command_PWM, 125, 250, 0, 255);
+  analogWrite(mRight, motorLeft); // front left
+  analogWrite(mLeft, motorRight); // back right
   digitalWrite(2, HIGH); // Enable H-bridge
-  setActuatorPWM(0, s1_command_PWM);
-  setActuatorPWM(1, s2_command_PWM);
-  setMyServoAngle(s1_command_PWM, s2_command_PWM);
+  // setActuatorPWM(0, s1_command_PWM);
+  // setActuatorPWM(1, s2_command_PWM);
+  // setMyServoAngle(s1_command_PWM, s2_command_PWM);
+  int motorFrontRight = map(m2_command_PWM, 125, 250, 0, 255);
+  int motorBackLeft = map(m4_command_PWM, 125, 250, 0, 255);
+  analogWrite(3, motorFrontRight); // 3,4 b=in (front right) 0,1 a=in(back left)
+  analogWrite(4, LOW);
+  analogWrite(0, motorBackLeft);
+  analogWrite(1, LOW);
 }
 
 float floatFaderLinear(float param, float param_min, float param_max, float fadeTime, int state, int loopFreq){
