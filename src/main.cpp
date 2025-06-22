@@ -200,7 +200,7 @@ void setupServer() {
       uint16_t airelon = map(rightX, 0, joystickUpperLimitsAIL, 0, 255);
       uint16_t rudder = map(leftX, 0, joystickUpperLimitsRUD, 0, 255);
       uint16_t elevator = map(rightY, 0, joystickUpperLimitsELE, 0, 255);
-      printf("leftX: %5d leftY: %5d rightX: %5d rightY: %5d throttle: %5d airelon: %5d rudder: %5d elevator: %5d %5d %5d %5d %5d center: T:%5d Y:%5d R:%5d P:%5d actual: T:%5d Y:%5d R:%5d P:%5d\n", leftX, leftY, rightX, rightY, throttle, airelon, rudder, elevator, joystickUpperLimitsTHR, joystickUpperLimitsRUD, joystickUpperLimitsAIL, joystickUpperLimitsELE, joystickCenterThro, joystickCenterYaw, joystickCenterRoll, joystickCenterPitch, channel_1_pwm, channel_4_pwm, channel_2_pwm, channel_3_pwm);
+      // printf("leftX: %5d leftY: %5d rightX: %5d rightY: %5d throttle: %5d airelon: %5d rudder: %5d elevator: %5d %5d %5d %5d %5d center: T:%5d Y:%5d R:%5d P:%5d actual: T:%5d Y:%5d R:%5d P:%5d\n", leftX, leftY, rightX, rightY, throttle, airelon, rudder, elevator, joystickUpperLimitsTHR, joystickUpperLimitsRUD, joystickUpperLimitsAIL, joystickUpperLimitsELE, joystickCenterThro, joystickCenterYaw, joystickCenterRoll, joystickCenterPitch, channel_1_pwm, channel_4_pwm, channel_2_pwm, channel_3_pwm);
        
       joyStickNormData.throttle = throttle;
       joyStickNormData.rudder = rudder;
@@ -625,9 +625,9 @@ void loop() {
     // events.send(pidString.c_str(),"PID_readings",millis());
 
     readings["MLeft"] = String(m1_command_PWM);
-    readings["MRight"] = String(m2_command_PWM);
-    readings["SLeft"] = String(s1_command_PWM);
-    readings["SRight"] = String(s2_command_PWM);
+    readings["MRight"] = String(m3_command_PWM);
+    readings["SLeft"] = String(m4_command_PWM);
+    readings["SRight"] = String(m2_command_PWM);
     String motorString = JSON.stringify (readings);
     events.send(motorString.c_str(),"motor_readings",millis());
 
@@ -1182,10 +1182,10 @@ void controlMixer() {
   // m1_command_scaled = thro_des - yaw_PID;
   // s1_command_scaled = /*servo_left_trim */ roll_PID + pitch_PID;  //left servo
   // s2_command_scaled = /*servo_right_trim */ roll_PID - pitch_PID; //right servo
-  m1_command_scaled = thro_des - pitch_PID + yaw_PID + roll_PID;
-  m2_command_scaled = thro_des - pitch_PID - yaw_PID - roll_PID;
-  m3_command_scaled = thro_des + pitch_PID - yaw_PID + roll_PID;
-  m4_command_scaled = thro_des + pitch_PID + yaw_PID - roll_PID;
+  m1_command_scaled = thro_des   - yaw_PID - roll_PID;
+  m2_command_scaled = thro_des - pitch_PID + roll_PID;
+  m3_command_scaled = thro_des  + yaw_PID + roll_PID;
+  m4_command_scaled = thro_des + pitch_PID - roll_PID;
   //my---tailsitter-end
   //Example use of the linear fader for float type variables. Linearly interpolates between minimum and maximum values for Kp_pitch_rate variable based on state of channel 6
   /*
@@ -1387,18 +1387,19 @@ void myCommandMotors() {
  // pin 3,4 B-channel
   int motorLeft = map(m1_command_PWM, 125, 250, 0, 255);
   int motorRight = map(m3_command_PWM, 125, 250, 0, 255);
-  analogWrite(mRight, motorLeft); // front left
-  analogWrite(mLeft, motorRight); // back right
+  ////analogWrite(mRight, motorLeft); // front left
+  ////analogWrite(mLeft, motorRight); // back right
   digitalWrite(2, HIGH); // Enable H-bridge
   // setActuatorPWM(0, s1_command_PWM);
   // setActuatorPWM(1, s2_command_PWM);
   // setMyServoAngle(s1_command_PWM, s2_command_PWM);
   int motorFrontRight = map(m2_command_PWM, 125, 250, 0, 255);
   int motorBackLeft = map(m4_command_PWM, 125, 250, 0, 255);
-  analogWrite(3, motorFrontRight); // 3,4 b=in (front right) 0,1 a=in(back left)
-  analogWrite(4, LOW);
-  analogWrite(0, motorBackLeft);
-  analogWrite(1, LOW);
+  // analogWrite(3, motorFrontRight); // 3,4 b=in (front right) 0,1 a=in(back left)
+  // analogWrite(4, LOW);
+  // analogWrite(0, motorBackLeft);
+  // analogWrite(1, LOW);
+  printf("m1: %d m2: %d m3: %d m4: %d\n", motorLeft, motorFrontRight, motorRight, motorBackLeft);
 }
 
 float floatFaderLinear(float param, float param_min, float param_max, float fadeTime, int state, int loopFreq){
