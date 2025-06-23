@@ -30,7 +30,11 @@ Run by `cd dronsim` then `npm install` and followed by `npm start`.
 Weight - again no idea should be 40gram or so.
 
 ## Image
+Realtime telemetry in browser via IP
+![dronetelemetry](docs-img/done-values-telemetry.png)
+Quad config with vertical mounted MPU so yaw and roll are switched.
 ![quad](docs-img/quad-frame.jpg)
+BiCopter format
 ![bicopter1](docs-img/bicopter1.jpg)
 ![bicopter2](docs-img/bicopter2.jpg)
 
