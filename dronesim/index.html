@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Drone PID Simulator</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #joystick { position: absolute; bottom: 20px; left: 20px; width: 150px; height: 150px; }
+ 
+    
+    #data-table {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      border-radius: 5px;
+      padding: 10px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+    }
+    #data-table th, #data-table td {
+      padding: 5px;
+      text-align: center;
+    } 
+
+  </style>
+</head>
+<body>
+  <button id="reset">Reset (0°,0°,0°)</button>
+  <span id="angles">Pitch: 0° Yaw: 0° Roll: 0°</span>
+  Pitch:<input type="range" id="imu-pitch" min="-90" max="90" value="0">
+  Roll:<input type="range" id="imu-roll" min="-90" max="90" value="0">
+  Yaw:<input type="range" id="imu-yaw" min="-90" max="90" value="0">
+  <label for="syncRealtimeIMU"><input type="checkbox" id="syncRealtimeIMU"> Sync with Real-time IMU</label>
+  <table id="data-table">
+    <thead>
+      <tr>
+        <th>Gyro (Pitch, Roll)</th>
+        <th>PID Output (Pitch, Roll, Yaw)</th>
+        <th>Joystick Input (Pitch, Roll)</th>
+        <th>Joystick IMU Input (Pitch, Yaw)</th>
+        <th>PID2</th>
+        <th>Motor Outputs (M1, M2, M3, M4)</th>
+        <th>IMU derived(pitch, roll, yaw)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td id="gyro-values">0, 0</td>
+        <td id="pid-values">0, 0</td>
+        <td id="joystick-values">0, 0</td>
+        <td id="imu-values">0, 0</td>
+        <td id="pid-values2">0, 0,0</td>
+        <td id="motor-values">0, 0, 0, 0</td>
+        <td id="imu-values-derived">0, 0, 0</td>
+      </tr>
+    </tbody>
+  </table>
+  <div id="joystick"></div> 
+  <div id="joystickImu"></div> 
+  
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.9.0/dist/nipplejs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/jeromeetienne/virtualjoystick.js/virtualjoystick.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/TransformControls.js"></script>
+  <script src="drone.js" type="module"></script>
+
+  <input type="color" id="colorPicker" value="#ff0000" style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "name": "threejs-vite-project",
+  "version": "1.0.0",
+  "description": "A simple Three.js project using Vite",
+  "main": "index.js",
+  "dependencies": {
+    "three": "^0.160.0",
+    "vite": "^6.3.5"
+  }
+}

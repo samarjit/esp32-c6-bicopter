@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>IMU Virtual Joystick</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+#hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: white;
+  z-index: 10;
+}
+#hud button { margin-bottom: 6px; padding: 6px; }
+
+    </style>
+</head>
+<body>
+  <div id="hud">
+    <button id="reset">Reset (0°,0°,0°)</button>
+    <p id="angles">Pitch: 0° Yaw: 0° Roll: 0°</p>
+      <div id="label-pitch" class="label">Pitch: 0°</div>
+  <div id="label-yaw" class="label">Yaw: 0°</div>
+  <div id="label-roll" class="label">Roll: 0°</div>
+  </div>
+  <canvas id="app"></canvas>
+  <script type="module" src="/testgimbal.js"></script>
+</body>
+</html>
