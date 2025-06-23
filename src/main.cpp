@@ -56,6 +56,105 @@ https://github.com/arduino-libraries/MadgwickAHRS
 #include "ActuateController.h"
 #include "ServoController.h"
 
+#define USE_MPU6050_I2C //Default
+#define GYRO_250DPS //Default
+#define ACCEL_2G //Default
+#if defined USE_MPU6050_I2C
+  #include "MPU6050/MPU6050.h"
+  MPU6050 mpu6050;
+#elif defined USE_MPU9250_SPI
+  #include "MPU9250/MPU9250.h"
+  MPU9250 mpu9250(SPI2,36);
+#else
+  #error No MPU defined... 
+#endif
+
+//Setup gyro and accel full scale value selection and scale factor
+
+#if defined USE_MPU6050_I2C
+  #define GYRO_FS_SEL_250    MPU6050_GYRO_FS_250
+  #define GYRO_FS_SEL_500    MPU6050_GYRO_FS_500
+  #define GYRO_FS_SEL_1000   MPU6050_GYRO_FS_1000
+  #define GYRO_FS_SEL_2000   MPU6050_GYRO_FS_2000
+  #define ACCEL_FS_SEL_2     MPU6050_ACCEL_FS_2
+  #define ACCEL_FS_SEL_4     MPU6050_ACCEL_FS_4
+  #define ACCEL_FS_SEL_8     MPU6050_ACCEL_FS_8
+  #define ACCEL_FS_SEL_16    MPU6050_ACCEL_FS_16
+#elif defined USE_MPU9250_SPI
+  #define GYRO_FS_SEL_250    mpu9250.GYRO_RANGE_250DPS
+  #define GYRO_FS_SEL_500    mpu9250.GYRO_RANGE_500DPS
+  #define GYRO_FS_SEL_1000   mpu9250.GYRO_RANGE_1000DPS                                                        
+  #define GYRO_FS_SEL_2000   mpu9250.GYRO_RANGE_2000DPS
+  #define ACCEL_FS_SEL_2     mpu9250.ACCEL_RANGE_2G
+  #define ACCEL_FS_SEL_4     mpu9250.ACCEL_RANGE_4G
+  #define ACCEL_FS_SEL_8     mpu9250.ACCEL_RANGE_8G
+  #define ACCEL_FS_SEL_16    mpu9250.ACCEL_RANGE_16G
+#endif
+  
+#if defined GYRO_250DPS
+  #define GYRO_SCALE GYRO_FS_SEL_250
+  #define GYRO_SCALE_FACTOR 131.0
+#elif defined GYRO_500DPS
+  #define GYRO_SCALE GYRO_FS_SEL_500
+  #define GYRO_SCALE_FACTOR 65.5
+#elif defined GYRO_1000DPS
+  #define GYRO_SCALE GYRO_FS_SEL_1000
+  #define GYRO_SCALE_FACTOR 32.8
+#elif defined GYRO_2000DPS
+  #define GYRO_SCALE GYRO_FS_SEL_2000
+  #define GYRO_SCALE_FACTOR 16.4
+#endif
+
+#if defined ACCEL_2G
+  #define ACCEL_SCALE ACCEL_FS_SEL_2
+  #define ACCEL_SCALE_FACTOR 16384.0
+#elif defined ACCEL_4G
+  #define ACCEL_SCALE ACCEL_FS_SEL_4
+  #define ACCEL_SCALE_FACTOR 8192.0
+#elif defined ACCEL_8G
+  #define ACCEL_SCALE ACCEL_FS_SEL_8
+  #define ACCEL_SCALE_FACTOR 4096.0
+#elif defined ACCEL_16G
+  #define ACCEL_SCALE ACCEL_FS_SEL_16
+  #define ACCEL_SCALE_FACTOR 2048.0
+#endif
+
+///// start DMP
+//Filter parameters - Defaults tuned for 2kHz loop rate; Do not touch unless you know what you are doing:
+float B_madgwick = 0.04;  //Madgwick filter parameter
+float B_accel = 0.14;     //Accelerometer LP filter paramter, (MPU6050 default: 0.14. MPU9250 default: 0.2)
+float B_gyro = 0.1;       //Gyro LP filter paramter, (MPU6050 default: 0.1. MPU9250 default: 0.17)
+float B_mag = 1.0;        //Magnetometer LP filter parameter
+
+//Magnetometer calibration parameters - if using MPU9250, uncomment calibrateMagnetometer() in void setup() to get these values, else just ignore these
+float MagErrorX = 0.0;
+float MagErrorY = 0.0; 
+float MagErrorZ = 0.0;
+float MagScaleX = 1.0;
+float MagScaleY = 1.0;
+float MagScaleZ = 1.0;
+
+//IMU calibration parameters - calibrate IMU using calculate_IMU_error() in the void setup() to get these values, then comment out calculate_IMU_error()
+float AccErrorX = 0.0;
+float AccErrorY = 0.0;
+float AccErrorZ = 0.0;
+float GyroErrorX = 0.0;
+float GyroErrorY= 0.0;
+float GyroErrorZ = 0.0;
+////// end DMP
+
+//IMU:
+float AccX, AccY, AccZ;
+float AccX_prev, AccY_prev, AccZ_prev;
+float GyroX, GyroY, GyroZ;
+float GyroX_prev, GyroY_prev, GyroZ_prev;
+float MagX, MagY, MagZ;
+float MagX_prev, MagY_prev, MagZ_prev;
+float roll_IMU, pitch_IMU, yaw_IMU;
+float roll_IMU_prev, pitch_IMU_prev;
+// float AccErrorX, AccErrorY, AccErrorZ, GyroErrorX, GyroErrorY, GyroErrorZ;
+void calibrateAttitude();
+
 ////----------my---------
 const char* ssid = "BELL413";
 const char* password = "2AE9F24CC3E9";
@@ -83,7 +182,14 @@ typedef struct struct_message
 
 // Create a struct_message called myData
 struct_message espNowData;
-struct_message joyStickNormData;
+struct_message joyStickNormData = {
+  .throttle = 250,
+  .rudder = 127,
+  .elevator = 127,
+  .aileron = 127,
+  .mode = 0,
+  .panic = 0
+};
 esp_now_peer_info_t peerInfo;
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
@@ -193,8 +299,11 @@ void setupServer() {
             joystickCenterPitch = channel_3_pwm;
           }
         }
-        printf("Calibrating leftX: %d leftY: %d rightX: %d rightY: %d\n", leftX, leftY, rightX, rightY);
+        printf("Calibrating leftX: %d leftY: %d rightX: %d rightY: %d GyroZErr:%d GyroZ:%d\n", leftX, leftY, rightX, rightY, GyroErrorZ, GyroZ);
         printf("Calibrating joystickUpperLimitsTHR: %d joystickUpperLimitsRUD: %d joystickUpperLimitsAIL: %d joystickUpperLimitsELE: %d center: %5d %5d %5d %5d\n", joystickUpperLimitsTHR, joystickUpperLimitsRUD, joystickUpperLimitsAIL, joystickUpperLimitsELE, joystickCenterThro, joystickCenterYaw, joystickCenterRoll, joystickCenterPitch);
+        joyStickNormData.throttle = 120;
+        calibrateAttitude();
+
       }
       uint16_t throttle = map(leftY, 0, joystickUpperLimitsTHR, 0, 255);
       uint16_t airelon = map(rightX, 0, joystickUpperLimitsAIL, 0, 255);
@@ -352,14 +461,7 @@ unsigned long current_time, prev_time;
 unsigned long print_counter, serial_counter;
 unsigned long blink_counter, blink_delay;
 bool blinkAlternate;
-//IMU:
-float AccX, AccY, AccZ;
-float AccX_prev, AccY_prev, AccZ_prev;
-float GyroX, GyroY, GyroZ;
-float GyroX_prev, GyroY_prev, GyroZ_prev;
-float roll_IMU, pitch_IMU, yaw_IMU;
-float roll_IMU_prev, pitch_IMU_prev;
-float AccErrorX, AccErrorY, AccErrorZ, GyroErrorX, GyroErrorY, GyroErrorZ;
+
 float roll_correction, pitch_correction;
 float beta = 0.04; //madgwick filter parameter 
 float q0 = 1.0f; //initialize quaternion for madgwick filter
@@ -425,8 +527,8 @@ float Kd_yaw = 0.00015;   //Yaw D-gain (be careful when increasing too high, mot
 void IMUinit();
 void getIMUdata();
 void calculate_IMU_error();
-void calibrateAttitude();
-void Madgwick(float gx, float gy, float gz, float ax, float ay, float az, float invSampleFreq);
+
+void Madgwick6DOF(float gx, float gy, float gz, float ax, float ay, float az, float invSampleFreq);
 void getDesState();
 void controlANGLE();
 void controlANGLE2();
@@ -452,6 +554,7 @@ void printMotorCommands();
 void printLoopRate();
 float invSqrt(float x);
 void myCommandMotors();
+void set_precalibrated_error();
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -507,6 +610,7 @@ void setup() {
 
   //Get IMU error to calibrate attitude, assuming vehicle is level
   calculate_IMU_error();
+  // set_precalibrated_error();
   calibrateAttitude(); //helps to warm up IMU and Madgwick filter
 
   delay(20);
@@ -531,8 +635,8 @@ void setup() {
   m6_command_PWM = 125;
   commandMotors();
   
-  setupActuators();
-  setupMyServoConroller();
+  // setupActuators();
+  // setupMyServoConroller();
 
 
   delay(200);
@@ -569,7 +673,7 @@ void loop() {
 
   //Get vehicle state
   getIMUdata(); //pulls raw gyro and accel data from IMU and LP filters to remove noise
-  Madgwick(GyroX, GyroY, GyroZ, AccX, AccY, AccZ, dt); //updates roll_IMU, pitch_IMU, and yaw_IMU (degrees)
+  Madgwick6DOF(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, dt); //updates roll_IMU, pitch_IMU, and yaw_IMU (degrees)
 
   //Compute desired state
   getDesState(); //convert raw commands to normalized values based on saturated control limits
@@ -588,9 +692,9 @@ void loop() {
   //my----
   if ((millis() - lastTime) > 100) {
     // events.send(String(22).c_str(),"temperature_reading",millis());
-    readings["gyroX"] = String(roll_IMU * 0.0174533);
-    readings["gyroY"] = String(pitch_IMU * 0.0174533);
-    readings["gyroZ"] = String(yaw_IMU * 0.0174533);
+    readings["gyroX"] = String(GyroX * 0.0174533);
+    readings["gyroY"] = String(GyroY * 0.0174533);
+    readings["gyroZ"] = String(GyroZ * 0.0174533);
     // String jsonString = JSON.stringify(readings);
     // events.send(jsonString.c_str(),"gyro_readings",millis());
 
@@ -625,9 +729,9 @@ void loop() {
     // events.send(pidString.c_str(),"PID_readings",millis());
 
     readings["MLeft"] = String(m1_command_PWM);
-    readings["MRight"] = String(m3_command_PWM);
-    readings["SLeft"] = String(m4_command_PWM);
-    readings["SRight"] = String(m2_command_PWM);
+    readings["MRight"] = String(m2_command_PWM);
+    readings["SLeft"] = String(m3_command_PWM);
+    readings["SRight"] = String(m4_command_PWM);
     String motorString = JSON.stringify (readings);
     events.send(motorString.c_str(),"motor_readings",millis());
 
@@ -663,6 +767,52 @@ void loop() {
 //FUNCTIONS
 
 void IMUinit() {
+  //DESCRIPTION: Initialize IMU
+  /*
+   * Don't worry about how this works.
+   */
+  #if defined USE_MPU6050_I2C
+    Wire.begin(18, 19);
+    Wire.setClock(1000000); //Note this is 2.5 times the spec sheet 400 kHz max...
+    
+    mpu6050.initialize();
+    
+    if (mpu6050.testConnection() == false) {
+      Serial.println("MPU6050 initialization unsuccessful");
+      Serial.println("Check MPU6050 wiring or try cycling power");
+      while(1) {}
+    }
+
+    //From the reset state all registers should be 0x00, so we should be at
+    //max sample rate with digital low pass filter(s) off.  All we need to
+    //do is set the desired fullscale ranges
+    mpu6050.setFullScaleGyroRange(GYRO_SCALE);
+    mpu6050.setFullScaleAccelRange(ACCEL_SCALE);
+    
+  #elif defined USE_MPU9250_SPI
+    int status = mpu9250.begin();    
+
+    if (status < 0) {
+      Serial.println("MPU9250 initialization unsuccessful");
+      Serial.println("Check MPU9250 wiring or try cycling power");
+      Serial.print("Status: ");
+      Serial.println(status);
+      while(1) {}
+    }
+
+    //From the reset state all registers should be 0x00, so we should be at
+    //max sample rate with digital low pass filter(s) off.  All we need to
+    //do is set the desired fullscale ranges
+    mpu9250.setGyroRange(GYRO_SCALE);
+    mpu9250.setAccelRange(ACCEL_SCALE);
+    mpu9250.setMagCalX(MagErrorX, MagScaleX);
+    mpu9250.setMagCalY(MagErrorY, MagScaleY);
+    mpu9250.setMagCalZ(MagErrorZ, MagScaleZ);
+    mpu9250.setSrd(0); //sets gyro and accel read to 1khz, magnetometer read to 100hz
+  #endif
+}
+
+void IMUinit_old() {
   //DESCRIPTION: Initialize IMU I2C connection
   /*
    * Don't worry about how this works
@@ -678,6 +828,73 @@ void IMUinit() {
 }
 
 void getIMUdata() {
+  //DESCRIPTION: Request full dataset from IMU and LP filter gyro, accelerometer, and magnetometer data
+  /*
+   * Reads accelerometer, gyro, and magnetometer data from IMU as AccX, AccY, AccZ, GyroX, GyroY, GyroZ, MagX, MagY, MagZ. 
+   * These values are scaled according to the IMU datasheet to put them into correct units of g's, deg/sec, and uT. A simple first-order
+   * low-pass filter is used to get rid of high frequency noise in these raw signals. Generally you want to cut
+   * off everything past 80Hz, but if your loop rate is not fast enough, the low pass filter will cause a lag in
+   * the readings. The filter parameters B_gyro and B_accel are set to be good for a 2kHz loop rate. Finally,
+   * the constant errors found in calculate_IMU_error() on startup are subtracted from the accelerometer and gyro readings.
+   */
+  int16_t AcX,AcY,AcZ,GyX,GyY,GyZ,MgX,MgY,MgZ;
+
+  #if defined USE_MPU6050_I2C
+    mpu6050.getMotion6(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ);
+  #elif defined USE_MPU9250_SPI
+    mpu9250.getMotion9(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ, &MgX, &MgY, &MgZ);
+  #endif
+
+ //Accelerometer
+  AccX = AcX / ACCEL_SCALE_FACTOR; //G's
+  AccY = AcY / ACCEL_SCALE_FACTOR;
+  AccZ = AcZ / ACCEL_SCALE_FACTOR;
+  //Correct the outputs with the calculated error values
+  AccX = AccX - AccErrorX;
+  AccY = AccY - AccErrorY;
+  AccZ = AccZ - AccErrorZ;
+  //LP filter accelerometer data
+  AccX = (1.0 - B_accel)*AccX_prev + B_accel*AccX;
+  AccY = (1.0 - B_accel)*AccY_prev + B_accel*AccY;
+  AccZ = (1.0 - B_accel)*AccZ_prev + B_accel*AccZ;
+  AccX_prev = AccX;
+  AccY_prev = AccY;
+  AccZ_prev = AccZ;
+
+  //Gyro
+  GyroX = GyX / GYRO_SCALE_FACTOR; //deg/sec
+  GyroY = GyY / GYRO_SCALE_FACTOR;
+  GyroZ = GyZ / GYRO_SCALE_FACTOR;
+  //Correct the outputs with the calculated error values
+  GyroX = GyroX - GyroErrorX;
+  GyroY = GyroY - GyroErrorY;
+  GyroZ = GyroZ - GyroErrorZ;
+  //LP filter gyro data
+  GyroX = (1.0 - B_gyro)*GyroX_prev + B_gyro*GyroX;
+  GyroY = (1.0 - B_gyro)*GyroY_prev + B_gyro*GyroY;
+  GyroZ = (1.0 - B_gyro)*GyroZ_prev + B_gyro*GyroZ;
+  GyroX_prev = GyroX;
+  GyroY_prev = GyroY;
+  GyroZ_prev = GyroZ;
+
+  //Magnetometer
+  MagX = MgX/6.0; //uT
+  MagY = MgY/6.0;
+  MagZ = MgZ/6.0;
+  //Correct the outputs with the calculated error values
+  MagX = (MagX - MagErrorX)*MagScaleX;
+  MagY = (MagY - MagErrorY)*MagScaleY;
+  MagZ = (MagZ - MagErrorZ)*MagScaleZ;
+  //LP filter magnetometer data
+  MagX = (1.0 - B_mag)*MagX_prev + B_mag*MagX;
+  MagY = (1.0 - B_mag)*MagY_prev + B_mag*MagY;
+  MagZ = (1.0 - B_mag)*MagZ_prev + B_mag*MagZ;
+  MagX_prev = MagX;
+  MagY_prev = MagY;
+  MagZ_prev = MagZ;
+}
+
+void getIMUdata_old() {
   //DESCRIPTION: Request full dataset from IMU and LP filter gyro and accelerometer data
   /*
    * Reads accelerometer and gyro data from IMU as AccX, AccY, AccZ, GyroX, GyroY, GyroZ. These values are scaled 
@@ -740,64 +957,86 @@ void getIMUdata() {
   GyroZ = GyroZ - GyroErrorZ;
 }
 
+void set_precalibrated_error() {
+  AccErrorX = 1.01;
+  AccErrorY = -0.03;
+  AccErrorZ = -0.79;
+  GyroErrorX = -3.01;
+  GyroErrorY = 0.50;
+  GyroErrorZ = -0.27;
+}
 void calculate_IMU_error() {
-  //DESCRIPTION: Computes IMU error on startup. Note: vehicle should be powered up on flat surface
+  //DESCRIPTION: Computes IMU accelerometer and gyro error on startup. Note: vehicle should be powered up on flat surface
   /*
    * Don't worry too much about what this is doing. The error values it computes are applied to the raw gyro and 
    * accelerometer values AccX, AccY, AccZ, GyroX, GyroY, GyroZ in getIMUdata(). This eliminates drift in the
    * measurement. 
    */
-  int16_t AcX,AcY,AcZ,GyX,GyY,GyZ;
+  int16_t AcX,AcY,AcZ,GyX,GyY,GyZ,MgX,MgY,MgZ;
+  AccErrorX = 0.0;
+  AccErrorY = 0.0;
+  AccErrorZ = 0.0;
+  GyroErrorX = 0.0;
+  GyroErrorY= 0.0;
+  GyroErrorZ = 0.0;
   
-  //Read accelerometer values 12000 times
+  //Read IMU values 12000 times
   int c = 0;
   while (c < 12000) {
-    Wire.beginTransmission(MPU);
-    Wire.write(0x3B);
-    Wire.endTransmission(false);
-    Wire.requestFrom(MPU, 6, true);
-    AcX = (Wire.read() << 8 | Wire.read());
-    AcY = (Wire.read() << 8 | Wire.read());
-    AcZ = (Wire.read() << 8 | Wire.read());
-    AccX = AcX / 16384.0;
-    AccY = AcY / 16384.0;
-    AccZ = AcZ / 16384.0;
-    // Sum all readings
-    AccErrorX = AccErrorX + AccX;
-    AccErrorY = AccErrorY + AccY;
-    AccErrorZ = AccErrorZ + AccZ;
-    c++;
-  }
-  //Divide the sum by 12000 to get the error value
-  AccErrorX = AccErrorX / 12000.0;
-  AccErrorY = AccErrorY / 12000.0;
-  AccErrorZ = AccErrorZ / 12000.0 - 1.0;
-  c = 0;
-  //Read gyro values 12000 times
-  while (c < 12000) {
-    Wire.beginTransmission(MPU);
-    Wire.write(0x43);
-    Wire.endTransmission(false);
-    Wire.requestFrom(MPU, 6, true);
-    GyX = Wire.read() << 8 | Wire.read();
-    GyY = Wire.read() << 8 | Wire.read();
-    GyZ = Wire.read() << 8 | Wire.read();
-    GyroX = GyX / 131.0;
-    GyroY = GyY / 131.0;
-    GyroZ = GyZ / 131.0;
-    // Sum all readings
+    #if defined USE_MPU6050_I2C
+      mpu6050.getMotion6(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ);
+    #elif defined USE_MPU9250_SPI
+      mpu9250.getMotion9(&AcX, &AcY, &AcZ, &GyX, &GyY, &GyZ, &MgX, &MgY, &MgZ);
+    #endif
+    
+    AccX  = AcX / ACCEL_SCALE_FACTOR;
+    AccY  = AcY / ACCEL_SCALE_FACTOR;
+    AccZ  = AcZ / ACCEL_SCALE_FACTOR;
+    GyroX = GyX / GYRO_SCALE_FACTOR;
+    GyroY = GyY / GYRO_SCALE_FACTOR;
+    GyroZ = GyZ / GYRO_SCALE_FACTOR;
+    
+    //Sum all readings
+    AccErrorX  = AccErrorX + AccX;
+    AccErrorY  = AccErrorY + AccY;
+    AccErrorZ  = AccErrorZ + AccZ;
     GyroErrorX = GyroErrorX + GyroX;
     GyroErrorY = GyroErrorY + GyroY;
     GyroErrorZ = GyroErrorZ + GyroZ;
     c++;
   }
   //Divide the sum by 12000 to get the error value
-  GyroErrorX = GyroErrorX / 12000.0;
-  GyroErrorY = GyroErrorY / 12000.0;
-  GyroErrorZ = GyroErrorZ / 12000.0;
+  AccErrorX  = AccErrorX / c;
+  AccErrorY  = AccErrorY / c;
+  AccErrorZ  = AccErrorZ / c - 1.0;
+  GyroErrorX = GyroErrorX / c;
+  GyroErrorY = GyroErrorY / c;
+  GyroErrorZ = GyroErrorZ / c;
+
+  Serial.print(" AccErrorX = ");
+  Serial.print(AccErrorX);
+  Serial.println(";");
+  Serial.print(" AccErrorY = ");
+  Serial.print(AccErrorY);
+  Serial.println(";");
+  Serial.print(" AccErrorZ = ");
+  Serial.print(AccErrorZ);
+  Serial.println(";");
+  
+  Serial.print(" GyroErrorX = ");
+  Serial.print(GyroErrorX);
+  Serial.println(";");
+  Serial.print(" GyroErrorY = ");
+  Serial.print(GyroErrorY);
+  Serial.println(";");
+  Serial.print(" GyroErrorZ = ");
+  Serial.print(GyroErrorZ);
+  Serial.println(";");
+
+  Serial.println("Paste these values in user specified variables section and comment out calculate_IMU_error() in void setup.");
 }
 
-void calibrateAttitude() {
+void calibrateAttitudeOld() {
   //DESCRIPTION: Extra function to calibrate IMU attitude estimate on startup, can be used to warm up everything before entering main loop
   //Assuming vehicle is powered up on level surface!
   /*
@@ -813,7 +1052,7 @@ void calibrateAttitude() {
     current_time = micros();      
     dt = (current_time - prev_time)/1000000.0; 
     getIMUdata();
-    Madgwick(GyroX, GyroY, GyroZ, AccX, AccY, AccZ, dt);
+    Madgwick6DOF(GyroX, GyroY, GyroZ, AccX, AccY, AccZ, dt);
     loopRate(2000); //do not exceed 2000Hz
   }
   //Grab mean roll and pitch values after everything is warmed up
@@ -822,24 +1061,40 @@ void calibrateAttitude() {
     current_time = micros();      
     dt = (current_time - prev_time)/1000000.0; 
     getIMUdata();
-    Madgwick(GyroX, GyroY, GyroZ, AccX, AccY, AccZ, dt);
+    Madgwick6DOF(GyroX, GyroY, GyroZ, AccX, AccY, AccZ, dt);
     roll_correction = roll_IMU + roll_correction;
     pitch_correction = pitch_IMU + pitch_correction;
     loopRate(2000); //do not exceed 2000Hz
   }
-  //These are applied to roll and pitch after Madgwick filter in main loop if desired using correctRollPitch()
+  //These are applied to roll and pitch after Madgwick6DOF filter in main loop if desired using correctRollPitch()
   roll_correction = roll_correction/2000.0;
   pitch_correction = pitch_correction/2000.0;
 }
 
-void Madgwick(float gx, float gy, float gz, float ax, float ay, float az, float invSampleFreq) {
-  //DESCRIPTION: Attitude estimation through sensor fusion
+void calibrateAttitude() {
+  //DESCRIPTION: Used to warm up the main loop to allow the madwick filter to converge before commands can be sent to the actuators
+  //Assuming vehicle is powered up on level surface!
   /*
-   * This function fuses the accelerometer and gyro readings AccX, AccY, AccZ, GyroX, GyroY, GyroZ for attitude estimation.
-   * Don't worry about the math. There is a tunable parameter called beta in the variable declaration section which basically
-   * adjusts the weight of accelerometer and gyro data in the state estimate. Higher beta leads to noisier estimate, lower 
-   * beta leads to slower to respond estimate. It is currently tuned for 2kHz loop rate. This function updates the roll_IMU,
-   * pitch_IMU, and yaw_IMU variables which are in degrees. 
+   * This function is used on startup to warm up the attitude estimation and is what causes startup to take a few seconds
+   * to boot. 
+   */
+  //Warm up IMU and madgwick filter in simulated main loop
+  for (int i = 0; i <= 10000; i++) {
+    prev_time = current_time;      
+    current_time = micros();      
+    dt = (current_time - prev_time)/1000000.0; 
+    getIMUdata();
+    Madgwick6DOF(GyroX, -GyroY, -GyroZ, -AccX, AccY, AccZ, dt);
+    loopRate(2000); //do not exceed 2000Hz
+  }
+}
+
+
+void Madgwick6DOF(float gx, float gy, float gz, float ax, float ay, float az, float invSampleFreq) {
+  //DESCRIPTION: Attitude estimation through sensor fusion - 6DOF
+  /*
+   * See description of Madgwick() for more information. This is a 6DOF implimentation for when magnetometer data is not
+   * available (for example when using the recommended MPU6050 IMU for the default setup).
    */
   float recipNorm;
   float s0, s1, s2, s3;
@@ -892,10 +1147,10 @@ void Madgwick(float gx, float gy, float gz, float ax, float ay, float az, float 
     s3 *= recipNorm;
 
     //Apply feedback step
-    qDot1 -= beta * s0;
-    qDot2 -= beta * s1;
-    qDot3 -= beta * s2;
-    qDot4 -= beta * s3;
+    qDot1 -= B_madgwick * s0;
+    qDot2 -= B_madgwick * s1;
+    qDot3 -= B_madgwick * s2;
+    qDot4 -= B_madgwick * s3;
   }
 
   //Integrate rate of change of quaternion to yield quaternion
@@ -911,10 +1166,10 @@ void Madgwick(float gx, float gy, float gz, float ax, float ay, float az, float 
   q2 *= recipNorm;
   q3 *= recipNorm;
 
-  //compute angles
+  //Compute angles
   roll_IMU = atan2(q0*q1 + q2*q3, 0.5f - q1*q1 - q2*q2)*57.29577951; //degrees
-  pitch_IMU = asin(-2.0f * (q1*q3 - q0*q2))*57.29577951; //degrees
-  yaw_IMU = atan2(q1*q2 + q0*q3, 0.5f - q2*q2 - q3*q3)*57.29577951; //degrees
+  pitch_IMU = -asin(constrain(-2.0f * (q1*q3 - q0*q2),-0.999999,0.999999))*57.29577951; //degrees
+  yaw_IMU = -atan2(q1*q2 + q0*q3, 0.5f - q2*q2 - q3*q3)*57.29577951; //degrees
 }
 
 void getDesState() {
@@ -975,7 +1230,7 @@ void controlANGLE() {
   pitch_PID = .01*(Kp_pitch_angle*error_pitch + Ki_pitch_angle*integral_pitch - Kd_pitch_angle*derivative_pitch); //scaled by .01 to bring within -1 to 1 range
 
   //Yaw, stablize on rate from GyroZ
-  error_yaw = yaw_des - GyroZ;
+  error_yaw = yaw_des - yaw_IMU;
   integral_yaw = integral_yaw_prev + error_yaw*dt;
   if (channel_1_pwm < 1060) {   //don't let integrator build if throttle is too low
     integral_yaw = 0;
@@ -1182,10 +1437,10 @@ void controlMixer() {
   // m1_command_scaled = thro_des - yaw_PID;
   // s1_command_scaled = /*servo_left_trim */ roll_PID + pitch_PID;  //left servo
   // s2_command_scaled = /*servo_right_trim */ roll_PID - pitch_PID; //right servo
-  m1_command_scaled = thro_des   - yaw_PID - roll_PID;
-  m2_command_scaled = thro_des - pitch_PID + roll_PID;
-  m3_command_scaled = thro_des  + yaw_PID + roll_PID;
-  m4_command_scaled = thro_des + pitch_PID - roll_PID;
+  m1_command_scaled = thro_des   + yaw_PID + roll_PID;
+  m2_command_scaled = thro_des + pitch_PID - roll_PID;
+  m3_command_scaled = thro_des  - yaw_PID - roll_PID;
+  m4_command_scaled = thro_des - pitch_PID + roll_PID;
   //my---tailsitter-end
   //Example use of the linear fader for float type variables. Linearly interpolates between minimum and maximum values for Kp_pitch_rate variable based on state of channel 6
   /*
@@ -1237,8 +1492,32 @@ void scaleCommands() {
   // s5_command_PWM = constrain(s5_command_PWM, 0, 180);
   // s6_command_PWM = constrain(s6_command_PWM, 0, 180);
   // s7_command_PWM = constrain(s7_command_PWM, 0, 180);
+  int pwmVals[4] = {
+    m1_command_PWM,
+    m2_command_PWM,
+    m3_command_PWM,
+    m4_command_PWM
+  };
 
+  // Find the max PWM value
+  int maxPWM = pwmVals[0];
+  for (int i = 1; i < 4; ++i) {
+    if (pwmVals[i] > maxPWM) maxPWM = pwmVals[i];
+  }
+
+  // If maxPWM exceeds 250, scale all accordingly
+  if (maxPWM > 250) {
+    float scale = 250.0f / maxPWM;
+    for (int i = 0; i < 4; ++i) {
+      pwmVals[i] = int(pwmVals[i] * scale);
+    }
+    m1_command_PWM = pwmVals[0];
+    m2_command_PWM = pwmVals[1];
+    m3_command_PWM = pwmVals[2];
+    m4_command_PWM = pwmVals[3];
+  }
 }
+
 int getRadioPWM(int x) { // throttle = 1, roll = 2, pitch = 3, yaw = 4
   if (x == 1) {
     int throttl=  map(joyStickNormData.throttle, 0, 255, 1000, 2000);
@@ -1385,21 +1664,22 @@ void myCommandMotors() {
  // pin 2 H-bridge enable 
  // pin 0,1 A-channel
  // pin 3,4 B-channel
+
   int motorLeft = map(m1_command_PWM, 125, 250, 0, 255);
   int motorRight = map(m3_command_PWM, 125, 250, 0, 255);
-  ////analogWrite(mRight, motorLeft); // front left
-  ////analogWrite(mLeft, motorRight); // back right
+  analogWrite(mRight, motorLeft); // front left
+  analogWrite(mLeft, motorRight); // back right
   digitalWrite(2, HIGH); // Enable H-bridge
   // setActuatorPWM(0, s1_command_PWM);
   // setActuatorPWM(1, s2_command_PWM);
   // setMyServoAngle(s1_command_PWM, s2_command_PWM);
-  int motorFrontRight = map(m2_command_PWM, 125, 250, 0, 255);
-  int motorBackLeft = map(m4_command_PWM, 125, 250, 0, 255);
-  // analogWrite(3, motorFrontRight); // 3,4 b=in (front right) 0,1 a=in(back left)
-  // analogWrite(4, LOW);
-  // analogWrite(0, motorBackLeft);
-  // analogWrite(1, LOW);
-  printf("m1: %d m2: %d m3: %d m4: %d\n", motorLeft, motorFrontRight, motorRight, motorBackLeft);
+  int motorFront = map(m2_command_PWM, 125, 250, 0, 255);
+  int motorBack = map(m4_command_PWM, 125, 250, 0, 255);
+  analogWrite(3, motorFront); // 3,4 b=in (front right) 0,1 a=in(back left)
+  analogWrite(4, LOW);
+  analogWrite(0, LOW);
+  analogWrite(1, motorBack);
+  // printf("m1: %d m2: %d m3: %d m4: %d\n", motorLeft, motorFrontRight, motorRight, motorBackLeft);
 }
 
 float floatFaderLinear(float param, float param_min, float param_max, float fadeTime, int state, int loopFreq){

@@ -154,7 +154,19 @@ if (!!window.EventSource) {
     document.getElementById("MRight").innerHTML = obj.MRight;
     document.getElementById("SLeft").innerHTML = obj.SLeft;
     document.getElementById("SRight").innerHTML = obj.SRight;
-  }, false);
+    // send to simulator
+    try {
+        fetch('http://localhost:5173/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(obj),
+      });
+    } catch(error) {
+      console.error('Error sending data to simulator:', error);
+    }
+}, false);
+
+  
 }
 
 function resetPosition(element){
